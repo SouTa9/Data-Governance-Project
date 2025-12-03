@@ -1,0 +1,415 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# DATA GOVERNANCE PLATFORM - Docker Compose Configuration
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Services:
+#   1. YOUR AIRFLOW (Port 8080) - ETL orchestration and data pipelines
+#   2. OPENMETADATA (Port 8585) - Data catalog, lineage, and governance
+#
+# Quick Start:
+#   docker-compose up -d
+#   
+# Access URLs:
+#   - Airflow:             http://localhost:8080 (admin/admin)
+#   - OpenMetadata:        http://localhost:8585 (admin/admin)
+#   - OM Ingestion:        http://localhost:8081 (admin/admin)
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SHARED CONFIGURATION TEMPLATES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Airflow Common Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  image: airflow-dbt:latest
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+    AIRFLOW__API_AUTH__JWT_SECRET: 'test-key'
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    # Snowflake credentials for dbt (set these in .env file)
+    SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
+    SNOWFLAKE_USER: ${SNOWFLAKE_USER}
+    SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD}
+    SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE:-TRANSFORM_ROLE}
+    SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-COMPUTE_WH}
+    SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE:-DATA_GOVERNANCE_PROJECT}
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/airflow/requirements.txt:/opt/airflow/requirements.txt
+    - ${AIRFLOW_PROJ_DIR:-.}/data_governance:/opt/airflow/dbt/data_governance
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    airflow-postgres:
+      condition: service_healthy
+  networks:
+    - app_net
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenMetadata Common Environment Variables
+# ─────────────────────────────────────────────────────────────────────────────
+x-openmetadata-common-env:
+  &openmetadata-common-env
+  # Server Configuration
+  OPENMETADATA_CLUSTER_NAME: ${OPENMETADATA_CLUSTER_NAME:-openmetadata}
+  SERVER_PORT: ${SERVER_PORT:-8585}
+  SERVER_ADMIN_PORT: ${SERVER_ADMIN_PORT:-8586}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  
+  # Authentication & Authorization
+  AUTHORIZER_CLASS_NAME: ${AUTHORIZER_CLASS_NAME:-org.openmetadata.service.security.DefaultAuthorizer}
+  AUTHORIZER_REQUEST_FILTER: ${AUTHORIZER_REQUEST_FILTER:-org.openmetadata.service.security.JwtFilter}
+  AUTHORIZER_ADMIN_PRINCIPALS: ${AUTHORIZER_ADMIN_PRINCIPALS:-[admin]}
+  AUTHORIZER_ALLOWED_REGISTRATION_DOMAIN: ${AUTHORIZER_ALLOWED_REGISTRATION_DOMAIN:-["all"]}
+  AUTHENTICATION_PROVIDER: ${AUTHENTICATION_PROVIDER:-basic}
+  AUTHENTICATION_PUBLIC_KEYS: ${AUTHENTICATION_PUBLIC_KEYS:-[http://localhost:8585/api/v1/system/config/jwks]}
+  AUTHENTICATION_ENABLE_SELF_SIGNUP: ${AUTHENTICATION_ENABLE_SELF_SIGNUP:-true}
+  
+  # JWT Configuration
+  RSA_PUBLIC_KEY_FILE_PATH: ${RSA_PUBLIC_KEY_FILE_PATH:-"./conf/public_key.der"}
+  RSA_PRIVATE_KEY_FILE_PATH: ${RSA_PRIVATE_KEY_FILE_PATH:-"./conf/private_key.der"}
+  JWT_ISSUER: ${JWT_ISSUER:-"open-metadata.org"}
+  JWT_KEY_ID: ${JWT_KEY_ID:-"Gb389a-9f76-gdjs-a92j-0242bk94356"}
+  
+  # Pipeline Service (Ingestion Airflow)
+  PIPELINE_SERVICE_CLIENT_ENDPOINT: ${PIPELINE_SERVICE_CLIENT_ENDPOINT:-http://ingestion:8080}
+  SERVER_HOST_API_URL: ${SERVER_HOST_API_URL:-http://openmetadata-server:8585/api}
+  
+  # MySQL Database Configuration
+  DB_DRIVER_CLASS: ${DB_DRIVER_CLASS:-com.mysql.cj.jdbc.Driver}
+  DB_SCHEME: ${DB_SCHEME:-mysql}
+  DB_PARAMS: ${DB_PARAMS:-allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC}
+  DB_USER: ${DB_USER:-openmetadata_user}
+  DB_USER_PASSWORD: ${DB_USER_PASSWORD:-openmetadata_password}
+  DB_HOST: ${DB_HOST:-mysql}
+  DB_PORT: ${DB_PORT:-3306}
+  OM_DATABASE: ${OM_DATABASE:-openmetadata_db}
+  
+  # Elasticsearch Configuration
+  ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:- elasticsearch}
+  ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+  ELASTICSEARCH_SCHEME: ${ELASTICSEARCH_SCHEME:-http}
+  SEARCH_TYPE: ${SEARCH_TYPE:- "elasticsearch"}
+  
+  # Airflow Integration
+  AIRFLOW_USERNAME: ${AIRFLOW_USERNAME:-admin}
+  AIRFLOW_PASSWORD: ${AIRFLOW_PASSWORD:-admin}
+  FERNET_KEY: ${FERNET_KEY:-jJ/9sz0g0OHxsfxOoSfdFdmk3ysNmPRnH3TUAbz3IHA=}
+  
+  # Other Settings
+  SECRET_MANAGER: ${SECRET_MANAGER:-db}
+  OPENMETADATA_HEAP_OPTS: ${OPENMETADATA_HEAP_OPTS:--Xmx1G -Xms1G}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SERVICES
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # YOUR AIRFLOW SERVICES (Port 8080) - ETL Orchestration
+  # ═════════════════════════════════════════════════════════════════════════
+
+  airflow-postgres:
+    container_name: airflow-postgres
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+    networks:
+      - app_net
+    ports:
+      - "5433:5432"  # External port 5433 to avoid conflict with OpenMetadata's PostgreSQL
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/{logs,dags,plugins,config}
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/{logs,dags,plugins,config}
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-admin}
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    user: "0:0"
+    networks:
+      - app_net
+
+  airflow-apiserver:
+    <<: *airflow-common
+    container_name: airflow-apiserver
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app_net
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app_net
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: airflow-dag-processor
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app_net
+
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: airflow-triggerer
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app_net
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # OPENMETADATA SERVICES (Port 8585) - Data Catalog & Governance
+  # ═════════════════════════════════════════════════════════════════════════
+
+  mysql:
+    container_name: openmetadata-mysql
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: openmetadata_db
+      MYSQL_USER: openmetadata_user
+      MYSQL_PASSWORD: openmetadata_password
+    ports:
+      - "3306:3306"
+    volumes:
+     - openmetadata-mysql-data:/var/lib/mysql
+    networks:
+      - app_net
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  elasticsearch:
+    container_name: openmetadata-elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.4
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
+      - xpack.security.enabled=false
+    networks:
+      - app_net
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    healthcheck:
+      test: "curl -s http://localhost:9200/_cluster/health?pretty | grep status | grep -qE 'green|yellow' || exit 1"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+
+  execute-migrate-all:
+    container_name: execute-migrate-all
+    image: openmetadata/server:1.10.8
+    command: "./bootstrap/openmetadata-ops.sh migrate"
+    environment:
+      <<: *openmetadata-common-env
+      MIGRATION_LIMIT_PARAM: ${MIGRATION_LIMIT_PARAM:-1200}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks:
+      - app_net
+
+  openmetadata-server:
+    container_name: openmetadata-server
+    restart: always
+    image: openmetadata/server:1.10.8
+    environment:
+      <<: *openmetadata-common-env
+    ports:
+      - "8585:8585"
+      - "8586:8586"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      execute-migrate-all:
+        condition: service_completed_successfully
+    networks:
+      - app_net
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider",  "http://localhost:8586/healthcheck" ]
+
+  ingestion-postgres:
+    container_name: ingestion-postgres
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - ingestion-postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+    networks:
+      - app_net
+
+  ingestion:
+    container_name: openmetadata-ingestion
+    image: openmetadata/ingestion:1.10.8
+    depends_on:
+      ingestion-postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+      openmetadata-server:
+        condition: service_started
+    environment:
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__OPENMETADATA_AIRFLOW_APIS__DAG_GENERATED_CONFIGS: "/opt/airflow/dag_generated_configs"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@ingestion-postgres/airflow
+      AIRFLOW_DB: airflow
+      AIRFLOW_DAGS_FOLDER: "/opt/airflow/dags"
+      DB_PROPERTIES: ""
+    entrypoint: /bin/bash
+    command:
+      - "/opt/airflow/ingestion_dependency.sh"
+    ports:
+      - "8081:8080"
+    networks:
+      - app_net
+    volumes:
+      - ingestion-volume-dag-airflow:/opt/airflow/dag_generated_configs
+      - ingestion-volume-dags:/opt/airflow/dags
+      - ingestion-volume-tmp:/tmp
+      - ./data_governance/target:/opt/airflow/dbt_data/target:ro
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VOLUMES - Persistent Data Storage
+# ═══════════════════════════════════════════════════════════════════════════
+
+volumes:
+  # Your Airflow volumes
+  airflow-postgres-db-volume:
+    name: airflow-postgres-db-volume
+  
+  # OpenMetadata Ingestion Airflow PostgreSQL
+  ingestion-postgres-db-volume:
+    name: ingestion-postgres-db-volume
+  
+  # OpenMetadata volumes
+  openmetadata-mysql-data:
+    name: openmetadata-mysql-data
+  es-data:
+    name: openmetadata-es-data
+  ingestion-volume-dag-airflow:
+    name: openmetadata-ingestion-dag-airflow
+  ingestion-volume-dags:
+    name: openmetadata-ingestion-dags
+  ingestion-volume-tmp:
+    name: openmetadata-ingestion-tmp
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NETWORK - All services communicate here
+# ═══════════════════════════════════════════════════════════════════════════
+
+networks:
+  app_net:
+    name: data-governance-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.240.0/24"
