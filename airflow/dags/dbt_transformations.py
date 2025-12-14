@@ -16,8 +16,8 @@ from airflow.decorators import dag
 from airflow.operators.bash import BashOperator
 
 # dbt project path inside Docker container
-# (mounted from ./data_governance via docker-compose.yml)
-DBT_PROJECT_DIR = "/opt/airflow/dbt/data_governance"
+# (mounted from ./dbt via docker-compose.yml)
+DBT_PROJECT_DIR = "/opt/airflow/dbt"
 
 
 @dag(
