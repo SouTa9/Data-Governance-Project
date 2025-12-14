@@ -1,0 +1,292 @@
+version: 2
+
+sources:
+  # ============================================================================
+  # BRONZE LAYER - RAW SOURCE DATA
+  # ============================================================================
+  
+  - name: bronze
+    description: "Bronze layer containing raw, unprocessed data ingested from the source PostgreSQL database."
+    database: DATA_GOVERNANCE_PROJECT
+    schema: BRONZE
+    meta:
+      owner: "Data Engineering Team"
+      domain: "Sales Operations"
+    
+    tables:
+      - name: customers
+        description: "Customer master data from CRM system containing customer profile information."
+        tags: ['master_data', 'customer', 'pii']
+        columns:
+          - name: CUSTOMER_NUMBER
+            description: "Primary key - System-generated unique customer identifier."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'customer_id']
+          - name: CUSTOMER_NAME
+            description: "Legal business name or company name for B2B customers."
+            data_tests:
+              - not_null
+            tags: ['business_name', 'required']
+          - name: CONTACT_LAST_NAME
+            description: "Surname of the primary contact person."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: CONTACT_FIRST_NAME
+            description: "Given name of the primary contact person."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: PHONE
+            description: "Primary contact phone number."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: ADDRESS_LINE_1
+            description: "Street address line 1."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: ADDRESS_LINE_2
+            description: "Street address line 2."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: CITY
+            description: "City name."
+            tags: ['pii', 'geography']
+          - name: STATE
+            description: "State, province, or region."
+            tags: ['pii', 'geography']
+          - name: POSTAL_CODE
+            description: "Postal code or ZIP code."
+            tags: ['pii', 'geography']
+          - name: COUNTRY
+            description: "Country name."
+            tags: ['geography', 'required']
+          - name: SALES_REP_EMPLOYEE_NUMBER
+            description: "Foreign key to employees table."
+            tags: ['foreign_key', 'employee_ref']
+          - name: CREDIT_LIMIT
+            description: "Maximum credit limit in USD."
+            tags: ['financial', 'confidential']
+
+      - name: employees
+        description: "Employee master data from HRIS containing workforce information."
+        tags: ['master_data', 'employee', 'hr', 'pii']
+        columns:
+          - name: EMPLOYEE_NUMBER
+            description: "Primary key - System-generated unique employee identifier."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'employee_id']
+          - name: LAST_NAME
+            description: "Employee legal surname."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: FIRST_NAME
+            description: "Employee legal given name."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: EXTENSION
+            description: "Office phone extension."
+            tags: ['contact_info']
+          - name: EMAIL
+            description: "Corporate email address."
+            tags: ['pii', 'gdpr_personal_data']
+          - name: OFFICE_CODE
+            description: "Foreign key to offices table."
+            tags: ['foreign_key', 'location_ref']
+          - name: REPORTS_TO
+            description: "Foreign key to employees table - direct manager."
+            tags: ['foreign_key', 'employee_ref']
+          - name: JOB_TITLE
+            description: "Current job title or role designation."
+            tags: ['hr_data', 'required']
+
+      - name: offices
+        description: "Office location master data containing global office information."
+        tags: ['master_data', 'location']
+        columns:
+          - name: OFFICE_CODE
+            description: "Primary key - Unique office identifier code."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'location_id']
+          - name: CITY
+            description: "City where office is located."
+            data_tests:
+              - not_null
+            tags: ['geography', 'required']
+          - name: PHONE
+            description: "Office main phone number."
+            tags: ['contact_info']
+          - name: ADDRESS_LINE_1
+            description: "Street address line 1 for office location."
+            tags: ['address', 'location_data']
+          - name: ADDRESS_LINE_2
+            description: "Street address line 2 for office location."
+            tags: ['address', 'location_data']
+          - name: STATE
+            description: "State or province where office is located."
+            tags: ['geography']
+          - name: COUNTRY
+            description: "Country where office is located."
+            data_tests:
+              - not_null
+            tags: ['geography', 'required']
+          - name: POSTAL_CODE
+            description: "Postal code for office address."
+            tags: ['geography']
+          - name: TERRITORY
+            description: "Sales territory or region."
+            tags: ['geography', 'sales_region']
+
+      - name: orders
+        description: "Sales order header data containing order metadata, dates, and status."
+        tags: ['transactional', 'order', 'sales']
+        columns:
+          - name: ORDER_NUMBER
+            description: "Primary key - System-generated unique order identifier."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'transaction_id']
+          - name: ORDER_DATE
+            description: "Timestamp when order was placed."
+            data_tests:
+              - not_null
+            tags: ['timestamp', 'transaction_date']
+          - name: REQUIRED_DATE
+            description: "Customer-requested delivery date."
+            data_tests:
+              - not_null
+            tags: ['timestamp', 'sla_metric']
+          - name: SHIPPED_DATE
+            description: "Actual shipment date."
+            tags: ['timestamp', 'fulfillment_metric']
+          - name: STATUS
+            description: "Current order status code."
+            data_tests:
+              - not_null
+            tags: ['status_flag', 'workflow_state']
+          - name: COMMENTS
+            description: "Free-text order notes."
+            tags: ['free_text']
+          - name: CUSTOMER_NUMBER
+            description: "Foreign key to customers table."
+            data_tests:
+              - not_null
+            tags: ['foreign_key', 'customer_ref']
+
+      - name: order_details
+        description: "Sales order line item data containing product details and quantities."
+        tags: ['transactional', 'order_item', 'sales']
+        columns:
+          - name: ORDER_NUMBER
+            description: "Foreign key to orders table."
+            data_tests:
+              - not_null
+            tags: ['foreign_key', 'transaction_id']
+          - name: PRODUCT_CODE
+            description: "Foreign key to products table."
+            data_tests:
+              - not_null
+            tags: ['foreign_key', 'product_id']
+          - name: QUANTITY_ORDERED
+            description: "Number of units ordered."
+            data_tests:
+              - not_null
+            tags: ['measure', 'quantity']
+          - name: PRICE_EACH
+            description: "Unit selling price in USD."
+            data_tests:
+              - not_null
+            tags: ['financial', 'price']
+          - name: ORDER_LINE_NUMBER
+            description: "Line sequence number within order."
+            data_tests:
+              - not_null
+            tags: ['sequence']
+
+      - name: payments
+        description: "Customer payment transaction data recording all payments received."
+        tags: ['transactional', 'payment', 'finance']
+        columns:
+          - name: CUSTOMER_NUMBER
+            description: "Foreign key to customers table."
+            data_tests:
+              - not_null
+            tags: ['foreign_key', 'customer_ref']
+          - name: CHECK_NUMBER
+            description: "Payment reference number."
+            data_tests:
+              - not_null
+            tags: ['transaction_id', 'payment_ref']
+          - name: PAYMENT_DATE
+            description: "Date payment was received."
+            data_tests:
+              - not_null
+            tags: ['timestamp', 'transaction_date']
+          - name: AMOUNT
+            description: "Payment amount in USD."
+            data_tests:
+              - not_null
+            tags: ['financial', 'measure']
+
+      - name: products
+        description: "Product master data containing product catalog information."
+        tags: ['master_data', 'product']
+        columns:
+          - name: PRODUCT_CODE
+            description: "Primary key - Unique product SKU identifier."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'sku']
+          - name: PRODUCT_NAME
+            description: "Product display name."
+            data_tests:
+              - not_null
+            tags: ['display_name']
+          - name: PRODUCT_LINE
+            description: "Foreign key to product_lines table."
+            data_tests:
+              - not_null
+            tags: ['foreign_key', 'category']
+          - name: PRODUCT_SCALE
+            description: "Scale specification for model products."
+            tags: ['specification']
+          - name: PRODUCT_VENDOR
+            description: "Manufacturer or supplier name."
+            tags: ['vendor']
+          - name: PRODUCT_DESCRIPTION
+            description: "Detailed product description."
+            tags: ['description']
+          - name: QUANTITY_IN_STOCK
+            description: "Current available inventory quantity."
+            data_tests:
+              - not_null
+            tags: ['inventory', 'measure']
+          - name: BUY_PRICE
+            description: "Product cost or COGS."
+            data_tests:
+              - not_null
+            tags: ['financial', 'cost']
+          - name: MSRP
+            description: "Manufacturer Suggested Retail Price."
+            data_tests:
+              - not_null
+            tags: ['financial', 'price']
+
+      - name: product_lines
+        description: "Product category master data."
+        tags: ['master_data', 'category']
+        columns:
+          - name: PRODUCT_LINE
+            description: "Primary key - Product category name."
+            data_tests:
+              - unique
+              - not_null
+            tags: ['natural_key', 'category']
+          - name: TEXT_DESCRIPTION
+            description: "Plain text description of the product line."
+            tags: ['description']
+          - name: HTML_DESCRIPTION
+            description: "HTML-formatted rich description."
+            tags: ['description', 'html_content']
+          - name: IMAGE
+            description: "Category image binary data."
+            tags: ['binary_data']
