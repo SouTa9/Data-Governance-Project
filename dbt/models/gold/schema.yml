@@ -1,0 +1,364 @@
+version: 2
+
+models:
+  # ============================================================================
+  # GOLD LAYER - STAR SCHEMA FOR ANALYTICS
+  # ============================================================================
+
+  # --- SCD TYPE 2 DIMENSIONS ---
+
+  - name: dim_customer_scd2
+    description: "Customer dimension with SCD Type 2 history tracking. Each customer has multiple versions over time."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'dimension', 'scd2', 'customer']
+    columns:
+      - name: CUSTOMER_KEY
+        description: "Surrogate key - unique per customer version"
+        data_tests: [unique, not_null]
+        tags: ['primary_key', 'surrogate_key']
+      - name: CUSTOMER_NUMBER
+        description: "Natural key from source CRM"
+        tags: ['natural_key']
+      - name: CUSTOMER_NAME
+        description: "Customer company name"
+        tags: ['business_name']
+      - name: CONTACT_LAST_NAME
+        description: "Primary contact last name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CONTACT_FIRST_NAME
+        description: "Primary contact first name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CONTACT_FULL_NAME
+        description: "Full contact name (derived)"
+        tags: ['pii', 'gdpr_personal_data', 'derived']
+      - name: PHONE
+        description: "Customer phone number"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_1
+        description: "Street address line 1"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_2
+        description: "Street address line 2"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CITY
+        description: "City name"
+        tags: ['geography']
+      - name: STATE
+        description: "State or province"
+        tags: ['geography']
+      - name: POSTAL_CODE
+        description: "Postal code"
+        tags: ['geography']
+      - name: COUNTRY
+        description: "Country name"
+        tags: ['geography']
+      - name: SALES_REP_EMPLOYEE_NUMBER
+        description: "Assigned sales rep"
+        tags: ['foreign_key']
+      - name: CREDIT_LIMIT
+        description: "Customer credit limit USD"
+        tags: ['financial']
+      - name: CREDIT_TIER
+        description: "Credit tier category (Platinum, Gold, Silver, Bronze)"
+        tags: ['derived', 'category']
+      - name: VALID_FROM
+        description: "SCD2 version start date"
+        tags: ['scd2', 'temporal']
+      - name: VALID_TO
+        description: "SCD2 version end date"
+        tags: ['scd2', 'temporal']
+      - name: IS_CURRENT
+        description: "True if current active version"
+        tags: ['scd2']
+      - name: VERSION_NUMBER
+        description: "Version sequence number"
+        tags: ['scd2']
+      - name: DBT_UPDATED_AT
+        description: "dbt processing timestamp"
+        tags: ['audit']
+
+  - name: dim_product_scd2
+    description: "Product dimension with SCD Type 2 history tracking for price and inventory changes."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'dimension', 'scd2', 'product']
+    columns:
+      - name: PRODUCT_KEY
+        description: "Surrogate key - unique per product version"
+        data_tests: [unique, not_null]
+        tags: ['primary_key', 'surrogate_key']
+      - name: PRODUCT_CODE
+        description: "Natural key - product SKU"
+        tags: ['natural_key']
+      - name: PRODUCT_NAME
+        description: "Product display name"
+        tags: ['display_name']
+      - name: PRODUCT_LINE
+        description: "Product category"
+        tags: ['category']
+      - name: PRODUCT_SCALE
+        description: "Product scale specification"
+        tags: ['specification']
+      - name: PRODUCT_VENDOR
+        description: "Manufacturer or supplier"
+        tags: ['vendor']
+      - name: PRODUCT_DESCRIPTION
+        description: "Product detailed description"
+        tags: ['description']
+      - name: QUANTITY_IN_STOCK
+        description: "Inventory level at this point in time"
+        tags: ['inventory', 'measure']
+      - name: BUY_PRICE
+        description: "Product cost at this point in time"
+        tags: ['financial', 'confidential']
+      - name: MSRP
+        description: "List price at this point in time"
+        tags: ['financial']
+      - name: PROFIT_MARGIN_PCT
+        description: "Profit margin percentage (derived)"
+        tags: ['derived', 'financial', 'kpi']
+        tests:
+          - dbt_utils.accepted_range:
+              name: profit_margin_realistic_range
+              config:
+                severity: error
+              min_value: -50
+              max_value: 95
+              inclusive: true
+      - name: PRICE_CATEGORY
+        description: "Price tier"
+        tags: ['derived', 'category']
+      - name: STOCK_STATUS
+        description: "Stock level category"
+        tags: ['derived', 'inventory']
+      - name: VALID_FROM
+        description: "SCD2 version start date"
+        tags: ['scd2', 'temporal']
+      - name: VALID_TO
+        description: "SCD2 version end date"
+        tags: ['scd2', 'temporal']
+      - name: IS_CURRENT
+        description: "True if current active version"
+        tags: ['scd2']
+      - name: VERSION_NUMBER
+        description: "Version sequence number"
+        tags: ['scd2']
+      - name: DBT_UPDATED_AT
+        description: "dbt processing timestamp"
+        tags: ['audit']
+
+  - name: dim_employee_scd2
+    description: "Employee dimension with SCD Type 2 history tracking for job changes and promotions."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'dimension', 'scd2', 'employee', 'hr']
+    columns:
+      - name: EMPLOYEE_KEY
+        description: "Surrogate key - unique per employee version"
+        data_tests: [unique, not_null]
+        tags: ['primary_key', 'surrogate_key']
+      - name: EMPLOYEE_NUMBER
+        description: "Natural key from HRIS"
+        tags: ['natural_key']
+      - name: FIRST_NAME
+        description: "Employee first name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: LAST_NAME
+        description: "Employee last name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: FULL_NAME
+        description: "Full name (derived)"
+        tags: ['pii', 'gdpr_personal_data', 'derived']
+      - name: EMAIL
+        description: "Corporate email"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: PHONE_EXTENSION
+        description: "Office phone extension"
+        tags: ['contact_info']
+      - name: IS_SALES_ROLE
+        description: "Sales role flag"
+        tags: ['derived']
+      - name: OFFICE_CODE
+        description: "Office location FK"
+        tags: ['foreign_key']
+      - name: MANAGER_EMPLOYEE_NUMBER
+        description: "Manager FK"
+        tags: ['foreign_key']
+      - name: JOB_TITLE
+        description: "Job title at this point in time"
+        tags: ['hr']
+      - name: JOB_LEVEL
+        description: "Job level category"
+        tags: ['derived', 'hr']
+      - name: IS_MANAGER
+        description: "Manager flag"
+        tags: ['derived', 'hr']
+      - name: VALID_FROM
+        description: "SCD2 version start date"
+        tags: ['scd2', 'temporal']
+      - name: VALID_TO
+        description: "SCD2 version end date"
+        tags: ['scd2', 'temporal']
+      - name: IS_CURRENT
+        description: "True if current active version"
+        tags: ['scd2']
+      - name: VERSION_NUMBER
+        description: "Version sequence number"
+        tags: ['scd2']
+      - name: DBT_UPDATED_AT
+        description: "dbt processing timestamp"
+        tags: ['audit']
+
+  - name: dim_date
+    description: "Date dimension for time-based analysis (role-playing dimension)."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'dimension', 'conformed', 'date']
+    columns:
+      - name: DATE_KEY
+        description: "Integer date key YYYYMMDD format"
+        data_tests: [unique]
+        tags: ['primary_key']
+      - name: DATE_DAY
+        description: "Calendar date"
+        tags: ['temporal']
+      - name: DAY_OF_WEEK
+        description: "Day of week (1-7)"
+        tags: ['temporal']
+      - name: DAY_NAME
+        description: "Day name"
+        tags: ['temporal']
+      - name: WEEK_OF_YEAR
+        description: "ISO week number"
+        tags: ['temporal']
+      - name: MONTH_NUMBER
+        description: "Month number"
+        tags: ['temporal']
+      - name: MONTH_NAME
+        description: "Month name"
+        tags: ['temporal']
+      - name: QUARTER
+        description: "Calendar quarter"
+        tags: ['temporal']
+      - name: YEAR
+        description: "Calendar year"
+        tags: ['temporal']
+      - name: IS_WEEKEND
+        description: "Weekend flag"
+        tags: ['derived']
+
+  - name: fact_order_items
+    description: "Order line item fact table - grain is one row per order line."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'fact', 'order', 'sales']
+    columns:
+      - name: ORDER_ITEM_KEY
+        description: "Surrogate key for fact row"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: ORDER_NUMBER
+        description: "Order identifier"
+        tags: ['degenerate_dimension']
+      - name: ORDER_LINE_NUMBER
+        description: "Line sequence"
+        tags: ['degenerate_dimension']
+      - name: CUSTOMER_KEY
+        description: "FK to dim_customer_scd2"
+        tags: ['foreign_key']
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer_scd2')
+              field: CUSTOMER_KEY
+      - name: PRODUCT_KEY
+        description: "FK to dim_product_scd2"
+        tags: ['foreign_key']
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product_scd2')
+              field: PRODUCT_KEY
+      - name: ORDER_DATE_KEY
+        description: "FK to dim_date for order date"
+        tags: ['foreign_key', 'temporal']
+      - name: REQUIRED_DATE_KEY
+        description: "FK to dim_date for required date"
+        tags: ['foreign_key', 'temporal']
+      - name: SHIPPED_DATE_KEY
+        description: "FK to dim_date for shipped date"
+        tags: ['foreign_key', 'temporal']
+      - name: QUANTITY_ORDERED
+        description: "Number of units ordered"
+        tags: ['measure', 'quantity']
+      - name: PRICE_EACH
+        description: "Unit selling price"
+        tags: ['measure', 'financial']
+      - name: LINE_REVENUE
+        description: "Line revenue"
+        tags: ['measure', 'financial', 'kpi']
+      - name: BUY_PRICE
+        description: "Unit cost"
+        tags: ['measure', 'financial', 'confidential']
+      - name: LINE_COST
+        description: "Line cost"
+        tags: ['measure', 'financial']
+      - name: LINE_PROFIT
+        description: "Line profit"
+        tags: ['measure', 'financial', 'kpi']
+      - name: LINE_MARGIN_PCT
+        description: "Line margin percentage"
+        tags: ['measure', 'financial', 'kpi']
+      - name: DAYS_TO_SHIP
+        description: "Days from order to ship"
+        tags: ['measure', 'kpi']
+      - name: ORDER_STATUS
+        description: "Order status"
+        tags: ['status']
+      - name: IS_LATE
+        description: "Late shipment flag"
+        tags: ['kpi']
+      - name: IS_OPEN_ORDER
+        description: "Open order flag"
+        tags: ['status']
+      - name: DBT_UPDATED_AT
+        description: "dbt processing timestamp"
+        tags: ['audit']
+
+  - name: fact_customer_payments
+    description: "Customer payment fact table - grain is one row per payment."
+    meta:
+      owner: "Analytics Team"
+    tags: ['gold', 'fact', 'payment', 'finance']
+    columns:
+      - name: PAYMENT_KEY
+        description: "Surrogate key for fact row"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: CHECK_NUMBER
+        description: "Payment reference"
+        tags: ['degenerate_dimension']
+      - name: CUSTOMER_KEY
+        description: "FK to dim_customer_scd2"
+        tags: ['foreign_key']
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer_scd2')
+              field: CUSTOMER_KEY
+      - name: PAYMENT_DATE_KEY
+        description: "FK to dim_date"
+        tags: ['foreign_key', 'temporal']
+      - name: AMOUNT
+        description: "Payment amount USD"
+        tags: ['measure', 'financial']
+      - name: PAYMENT_TYPE
+        description: "Payment method"
+        tags: ['category']
+      - name: PAYMENT_DATE
+        description: "Payment date"
+        tags: ['temporal']
+      - name: DBT_UPDATED_AT
+        description: "dbt processing timestamp"
+        tags: ['audit']

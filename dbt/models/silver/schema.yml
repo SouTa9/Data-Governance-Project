@@ -1,0 +1,361 @@
+﻿version: 2
+
+models:
+  # ============================================================================
+  # SILVER LAYER - CLEANED & STANDARDIZED DATA
+  # ============================================================================
+
+  - name: silver_customers
+    description: "Cleaned customer master data with region derivation and data quality validation"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'master_data', 'customer']
+    tests:
+      - dbt_utils.equal_rowcount:
+          name: silver_customers_rowcount_matches_bronze
+          config:
+            severity: error
+          compare_model: source('bronze', 'customers')
+    columns:
+      - name: CUSTOMER_NUMBER
+        description: "Unique customer identifier - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: CUSTOMER_NAME
+        description: "Customer company name"
+        data_tests: [not_null]
+        tags: ['business_name']
+      - name: CONTACT_LAST_NAME
+        description: "Primary contact surname"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CONTACT_FIRST_NAME
+        description: "Primary contact given name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: PHONE
+        description: "Customer phone number"
+        data_tests: [not_null]
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_1
+        description: "Street address line 1"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_2
+        description: "Street address line 2"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CITY
+        description: "City name"
+        tags: ['pii', 'geography']
+      - name: STATE
+        description: "State or province"
+        tags: ['geography']
+      - name: POSTAL_CODE
+        description: "Postal or ZIP code"
+        tags: ['pii', 'geography']
+      - name: COUNTRY
+        description: "Country name"
+        tags: ['geography']
+      - name: REGION
+        description: "Derived sales region (AMERICAS, EMEA, APAC)"
+        tags: ['derived', 'geography', 'category']
+      - name: SALES_REP_EMPLOYEE_NUMBER
+        description: "Assigned sales rep FK"
+        tags: ['foreign_key']
+      - name: CREDIT_LIMIT
+        description: "Customer credit limit in USD"
+        tags: ['financial', 'confidential']
+        tests:
+          - dbt_utils.accepted_range:
+              name: credit_limit_within_policy_range
+              config:
+                severity: error
+              min_value: 0
+              max_value: 500000
+              inclusive: true
+      - name: IS_MISSING_PHONE
+        description: "Flag for missing phone data"
+        tags: ['data_quality']
+      - name: IS_MISSING_CREDIT_LIMIT
+        description: "Flag for missing credit limit"
+        tags: ['data_quality']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_employees
+    description: "Cleaned employee master data with organizational hierarchy"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'master_data', 'employee', 'hr']
+    columns:
+      - name: EMPLOYEE_NUMBER
+        description: "Unique employee identifier - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: LAST_NAME
+        description: "Employee surname"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: FIRST_NAME
+        description: "Employee given name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: PHONE_EXTENSION
+        description: "Office phone extension"
+        tags: ['contact_info']
+      - name: EMAIL
+        description: "Corporate email address"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: OFFICE_CODE
+        description: "Office location code FK"
+        tags: ['foreign_key']
+      - name: MANAGER_EMPLOYEE_NUMBER
+        description: "Manager employee number FK"
+        tags: ['foreign_key']
+      - name: JOB_TITLE
+        description: "Employee job title"
+        tags: ['hr']
+      - name: IS_SALES_ROLE
+        description: "Flag if employee is in sales role"
+        tags: ['derived']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_offices
+    description: "Cleaned office location master data"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'master_data', 'location']
+    columns:
+      - name: OFFICE_CODE
+        description: "Unique office identifier - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: CITY
+        description: "Office city"
+        tags: ['geography', 'location_data']
+      - name: PHONE
+        description: "Office main phone"
+        tags: ['contact_info']
+      - name: ADDRESS_LINE_1
+        description: "Office street address"
+        tags: ['address', 'location_data']
+      - name: ADDRESS_LINE_2
+        description: "Office address line 2"
+        tags: ['address', 'location_data']
+      - name: STATE
+        description: "Office state or province"
+        tags: ['geography']
+      - name: COUNTRY
+        description: "Office country"
+        tags: ['geography']
+      - name: POSTAL_CODE
+        description: "Office postal code"
+        tags: ['geography']
+      - name: TERRITORY
+        description: "Sales territory"
+        tags: ['geography']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_products
+    description: "Cleaned product master data with derived profit margin"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'master_data', 'product']
+    columns:
+      - name: PRODUCT_CODE
+        description: "Unique product SKU - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: PRODUCT_NAME
+        description: "Product display name"
+        tags: ['display_name']
+      - name: PRODUCT_LINE
+        description: "Product category"
+        tags: ['category']
+      - name: PRODUCT_SCALE
+        description: "Product scale specification"
+        tags: ['specification']
+      - name: PRODUCT_VENDOR
+        description: "Manufacturer or supplier"
+        tags: ['vendor']
+      - name: PRODUCT_DESCRIPTION
+        description: "Product description text"
+        tags: ['description']
+      - name: QUANTITY_IN_STOCK
+        description: "Current inventory level"
+        tags: ['inventory', 'measure']
+      - name: BUY_PRICE
+        description: "Product cost or COGS in USD"
+        tags: ['financial', 'confidential']
+      - name: MSRP
+        description: "Manufacturer suggested retail price"
+        tags: ['financial']
+      - name: PROFIT_MARGIN_PCT
+        description: "Derived profit margin percentage"
+        tags: ['derived', 'financial']
+      - name: STOCK_STATUS
+        description: "Derived stock status category"
+        tags: ['derived', 'inventory']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_orders
+    description: "Cleaned sales order header data with status enrichment"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'transaction', 'order']
+    columns:
+      - name: ORDER_NUMBER
+        description: "Unique order identifier - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: ORDER_DATE
+        description: "Order placement date"
+        tags: ['timestamp', 'temporal']
+      - name: REQUIRED_DATE
+        description: "Customer requested delivery date"
+        tags: ['timestamp', 'sla_metric']
+      - name: SHIPPED_DATE
+        description: "Actual shipment date"
+        tags: ['timestamp', 'fulfillment_metric']
+      - name: STATUS
+        description: "Order status code"
+        tags: ['status', 'workflow_state']
+      - name: COMMENTS
+        description: "Order notes or comments"
+        tags: ['free_text']
+      - name: CUSTOMER_NUMBER
+        description: "Customer FK"
+        data_tests:
+          - relationships:
+              name: fk_silver_orders_customer
+              to: ref('silver_customers')
+              field: CUSTOMER_NUMBER
+        tags: ['foreign_key']
+      - name: DAYS_TO_SHIP
+        description: "Days between order and shipment"
+        tags: ['derived', 'measure']
+      - name: IS_LATE
+        description: "Flag if order shipped after required date"
+        tags: ['derived', 'kpi']
+      - name: IS_OPEN_ORDER
+        description: "Flag if order is still open"
+        tags: ['derived', 'status']
+      - name: IS_CANCELLED
+        description: "Flag if order is cancelled"
+        tags: ['derived', 'status']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_order_items
+    description: "Cleaned order line items with revenue calculation"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'transaction', 'order_item']
+    columns:
+      - name: ORDER_NUMBER
+        description: "Order FK"
+        data_tests: [not_null]
+        tags: ['foreign_key']
+      - name: PRODUCT_CODE
+        description: "Product FK"
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('silver_products')
+              field: PRODUCT_CODE
+        tags: ['foreign_key']
+      - name: ORDER_LINE_NUMBER
+        description: "Line sequence within order"
+        tags: ['sequence']
+      - name: QUANTITY_ORDERED
+        description: "Quantity ordered"
+        tags: ['measure']
+      - name: PRICE_EACH
+        description: "Unit selling price"
+        tags: ['financial']
+      - name: LINE_REVENUE
+        description: "Line item revenue (qty x price)"
+        tags: ['derived', 'financial']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_payments
+    description: "Cleaned customer payment transactions"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'transaction', 'payment']
+    columns:
+      - name: CUSTOMER_NUMBER
+        description: "Customer FK"
+        data_tests:
+          - relationships:
+              name: fk_silver_payments_customer
+              to: ref('silver_customers')
+              field: CUSTOMER_NUMBER
+        tags: ['foreign_key']
+      - name: CHECK_NUMBER
+        description: "Payment reference number"
+        tags: ['transaction_id']
+      - name: PAYMENT_DATE
+        description: "Payment received date"
+        tags: ['timestamp', 'temporal']
+      - name: AMOUNT
+        description: "Payment amount in USD"
+        tags: ['financial', 'measure']
+      - name: PAYMENT_TYPE
+        description: "Payment type (Check, Wire, etc)"
+        tags: ['category']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
+
+  - name: silver_product_lines
+    description: "Cleaned product category master data"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['silver', 'master_data', 'category']
+    columns:
+      - name: PRODUCT_LINE
+        description: "Product category - primary key"
+        data_tests: [unique, not_null]
+        tags: ['primary_key']
+      - name: TEXT_DESCRIPTION
+        description: "Category text description"
+        tags: ['description']
+      - name: HTML_DESCRIPTION
+        description: "Category HTML description"
+        tags: ['description', 'html_content']
+      - name: IMAGE
+        description: "Category image binary"
+        tags: ['binary_data']
+      - name: _LOADED_AT
+        description: "ETL load timestamp"
+        tags: ['audit']
+      - name: _SOURCE_TABLE
+        description: "Source table name"
+        tags: ['audit']
