@@ -16,6 +16,7 @@
 #
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SHARED CONFIGURATION TEMPLATES
 # ═══════════════════════════════════════════════════════════════════════════
@@ -48,13 +49,16 @@ x-airflow-common:
     SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE:-TRANSFORM_ROLE}
     SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE:-COMPUTE_WH}
     SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE:-DATA_GOVERNANCE_PROJECT}
+    # DAG Processing Timeouts (fix for slow dbt/Snowflake imports)
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 600  # 10 minutes for importing DAG files
+    AIRFLOW__CORE__DAG_FILE_PROCESSOR_TIMEOUT: 600  # 10 minutes for processing DAG files
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/requirements.txt:/opt/airflow/requirements.txt
-    - ${AIRFLOW_PROJ_DIR:-.}/data_governance:/opt/airflow/dbt/data_governance
+    - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -272,6 +276,7 @@ services:
   elasticsearch:
     container_name: openmetadata-elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.4
+    restart: always
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
@@ -291,7 +296,7 @@ services:
 
   execute-migrate-all:
     container_name: execute-migrate-all
-    image: openmetadata/server:1.10.8
+    image: docker.getcollate.io/openmetadata/server:1.10.14
     command: "./bootstrap/openmetadata-ops.sh migrate"
     environment:
       <<: *openmetadata-common-env
@@ -307,7 +312,7 @@ services:
   openmetadata-server:
     container_name: openmetadata-server
     restart: always
-    image: openmetadata/server:1.10.8
+    image: docker.getcollate.io/openmetadata/server:1.10.14
     environment:
       <<: *openmetadata-common-env
     ports:
@@ -345,7 +350,7 @@ services:
 
   ingestion:
     container_name: openmetadata-ingestion
-    image: openmetadata/ingestion:1.10.8
+    image: docker.getcollate.io/openmetadata/ingestion:1.10.14
     depends_on:
       ingestion-postgres:
         condition: service_healthy
@@ -374,7 +379,7 @@ services:
       - ingestion-volume-dag-airflow:/opt/airflow/dag_generated_configs
       - ingestion-volume-dags:/opt/airflow/dags
       - ingestion-volume-tmp:/tmp
-      - ./data_governance/target:/opt/airflow/dbt_data/target:ro
+      - ${AIRFLOW_PROJ_DIR:-.}/dbt/target:/opt/airflow/dbt_data/target:ro
 
 # ═══════════════════════════════════════════════════════════════════════════
 # VOLUMES - Persistent Data Storage
