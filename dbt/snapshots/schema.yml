@@ -1,0 +1,165 @@
+﻿version: 2
+
+snapshots:
+  # ============================================================================
+  # SNAPSHOTS - SCD TYPE 2 HISTORY TRACKING
+  # ============================================================================
+
+  - name: customers_snapshot
+    description: "SCD Type 2 snapshot for customer data - tracks all historical changes"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['snapshot', 'scd2', 'customer']
+    columns:
+      - name: CUSTOMER_NUMBER
+        description: "Natural key - customer identifier"
+        tags: ['natural_key']
+      - name: CUSTOMER_NAME
+        description: "Customer company name"
+        tags: ['business_name']
+      - name: CONTACT_LAST_NAME
+        description: "Primary contact last name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CONTACT_FIRST_NAME
+        description: "Primary contact first name"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: PHONE
+        description: "Customer phone number"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_1
+        description: "Street address line 1"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: ADDRESS_LINE_2
+        description: "Street address line 2"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: CITY
+        description: "City"
+        tags: ['geography']
+      - name: STATE
+        description: "State or province"
+        tags: ['geography']
+      - name: POSTAL_CODE
+        description: "Postal code"
+        tags: ['geography']
+      - name: COUNTRY
+        description: "Country"
+        tags: ['geography']
+      - name: REGION
+        description: "Sales region (AMERICAS, EMEA, APAC)"
+        tags: ['derived', 'geography', 'category']
+      - name: SALES_REP_EMPLOYEE_NUMBER
+        description: "Assigned sales rep"
+        tags: ['foreign_key']
+      - name: CREDIT_LIMIT
+        description: "Credit limit USD"
+        tags: ['financial']
+      - name: DBT_SCD_ID
+        description: "dbt snapshot unique ID"
+        tags: ['scd2', 'audit']
+      - name: DBT_UPDATED_AT
+        description: "Snapshot update timestamp"
+        tags: ['scd2', 'audit']
+      - name: DBT_VALID_FROM
+        description: "Version start timestamp"
+        tags: ['scd2']
+      - name: DBT_VALID_TO
+        description: "Version end timestamp"
+        tags: ['scd2']
+
+  - name: products_snapshot
+    description: "SCD Type 2 snapshot for product data - tracks price and inventory changes"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['snapshot', 'scd2', 'product']
+    columns:
+      - name: PRODUCT_CODE
+        description: "Natural key - product SKU"
+        tags: ['natural_key']
+      - name: PRODUCT_NAME
+        description: "Product display name"
+        tags: ['display_name']
+      - name: PRODUCT_LINE
+        description: "Product category"
+        tags: ['category']
+      - name: PRODUCT_SCALE
+        description: "Product scale specification (e.g., 1:18, 1:24)"
+        tags: ['specification', 'product_attribute']
+      - name: PRODUCT_VENDOR
+        description: "Manufacturer"
+        tags: ['vendor']
+      - name: PRODUCT_DESCRIPTION
+        description: "Detailed product description"
+        tags: ['description', 'marketing_content']
+      - name: QUANTITY_IN_STOCK
+        description: "Inventory level"
+        tags: ['inventory', 'measure']
+      - name: BUY_PRICE
+        description: "Product cost"
+        tags: ['financial', 'confidential']
+      - name: MSRP
+        description: "List price"
+        tags: ['financial']
+      - name: PROFIT_MARGIN_PCT
+        description: "Margin percentage"
+        tags: ['derived', 'financial']
+      - name: STOCK_STATUS
+        description: "Stock level category"
+        tags: ['derived']
+      - name: DBT_SCD_ID
+        description: "dbt snapshot unique ID"
+        tags: ['scd2', 'audit']
+      - name: DBT_UPDATED_AT
+        description: "Snapshot update timestamp"
+        tags: ['scd2', 'audit']
+      - name: DBT_VALID_FROM
+        description: "Version start timestamp"
+        tags: ['scd2']
+      - name: DBT_VALID_TO
+        description: "Version end timestamp"
+        tags: ['scd2']
+
+  - name: employees_snapshot
+    description: "SCD Type 2 snapshot for employee data - tracks job and org changes"
+    meta:
+      owner: "Data Engineering Team"
+    tags: ['snapshot', 'scd2', 'employee', 'hr']
+    columns:
+      - name: EMPLOYEE_NUMBER
+        description: "Natural key - employee ID"
+        tags: ['natural_key']
+      - name: LAST_NAME
+        description: "Employee surname"
+        tags: ['pii', 'gdpr_personal_data', 'hr_data']
+      - name: FIRST_NAME
+        description: "Employee given name"
+        tags: ['pii', 'gdpr_personal_data', 'hr_data']
+      - name: PHONE_EXTENSION
+        description: "Office phone extension"
+        tags: ['contact_info']
+      - name: EMAIL
+        description: "Corporate email"
+        tags: ['pii', 'gdpr_personal_data']
+      - name: OFFICE_CODE
+        description: "Office location code"
+        tags: ['foreign_key', 'location_ref']
+      - name: MANAGER_EMPLOYEE_NUMBER
+        description: "Manager FK"
+        tags: ['foreign_key']
+      - name: JOB_TITLE
+        description: "Job title"
+        tags: ['hr']
+      - name: IS_SALES_ROLE
+        description: "Sales role flag"
+        tags: ['derived']
+      - name: DBT_SCD_ID
+        description: "dbt snapshot unique ID"
+        tags: ['scd2', 'audit']
+      - name: DBT_UPDATED_AT
+        description: "Snapshot update timestamp"
+        tags: ['scd2', 'audit']
+      - name: DBT_VALID_FROM
+        description: "Version start timestamp"
+        tags: ['scd2']
+      - name: DBT_VALID_TO
+        description: "Version end timestamp"
+        tags: ['scd2']
